@@ -7,26 +7,40 @@ from fullcollab_streamlit import FULLCOLLAB_DEMOS
 from emma_diag import BOARD_FABRICANTS_DEMOS
 
 
-# --- Configuration de page doit être AVANT tout code Streamlit ---
 st.set_page_config(page_title="Streamlit cours graphe")
 
 
-def load_demos(module):
-    """Retourne uniquement les attributs appelables (fonctions) du module."""
-    return {
-        name: obj
-        for name, obj in vars(module).items()
-        if callable(obj) and not name.startswith("__")
-    }
+def load_demos(src):
+    """Retourne un dict {nom: fonction} depuis un module, un dict ou un objet."""
+    demos = {}
+
+    # Cas 1 : c’est un module ou un objet avec __dict__
+    if hasattr(src, "__dict__"):
+        items = vars(src).items()
+
+    # Cas 2 : c’est déjà un dict
+    elif isinstance(src, dict):
+        items = src.items()
+
+    else:
+        # Cas 3 : objet sans __dict__
+        items = ((name, getattr(src, name)) for name in dir(src))
+
+    # On garde uniquement les fonctions appelables
+    for name, obj in items:
+        if callable(obj) and not name.startswith("__"):
+            demos[name] = obj
+
+    return demos
 
 
 def main():
     st.title("Streamlit cours graphe")
 
-    # On charge proprement toutes les démos
+    # Chargement sécurisé toutes les démos
     allDiag = {
         **load_demos(FULLCOLLAB_DEMOS),
-        **load_demos(BOARD_FABRICANTS_DEMOS)
+        **load_demos(BOARD_FABRICANTS_DEMOS),
     }
 
     with st.sidebar:
@@ -36,18 +50,17 @@ def main():
             options=list(allDiag.keys()),
         )
 
-    # Récupération et exécution de la démo
     demo = allDiag.get(selected_page)
+
     if demo:
         demo()
     else:
-        st.error("Erreur : la démo sélectionnée est introuvable.")
+        st.error("La démo sélectionnée est introuvable.")
 
 
 if __name__ == "__main__":
     main()
 
-    # Footer dans la sidebar
     with st.sidebar:
         st.markdown("---")
         st.markdown(
