@@ -1,9 +1,7 @@
 import datetime
 import pandas as pd
 import streamlit as st
-from streamlit_echarts import st_echarts
-import plotly.graph_objects as go
-import plotly.express as px
+from streamlit_echarts import st_echarts, JsCode
 
 
 # Variables globales pour stocker les données
@@ -96,14 +94,42 @@ def render_score_sante_fabricant():
     total_fab = subset[subset['fabID'] == fabID]['prodID'].nunique()
     score_sante = (total_fab / total_cat * 100) if total_cat > 0 else 0
     
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=score_sante,
-        title={'text': f"Score Santé Fab {fabID} - Cat {catID}"},
-        gauge={'axis': {'range': [0, 100]}}
-    ))
-    
-    st.plotly_chart(fig, use_container_width=True)
+    # Gauge avec ECharts
+    options = {
+        "title": {"text": f"Score Santé Fab {fabID} - Cat {catID}", "left": "center"},
+        "series": [{
+            "type": "gauge",
+            "startAngle": 180,
+            "endAngle": 0,
+            "min": 0,
+            "max": 100,
+            "splitNumber": 10,
+            "axisLine": {
+                "lineStyle": {
+                    "width": 30,
+                    "color": [
+                        [0.3, "#fd666d"],
+                        [0.7, "#37a2da"],
+                        [1, "#67e0e3"]
+                    ]
+                }
+            },
+            "pointer": {
+                "itemStyle": {"color": "auto"}
+            },
+            "axisTick": {"distance": -30, "length": 8},
+            "splitLine": {"distance": -30, "length": 30},
+            "axisLabel": {"distance": -20, "fontSize": 12},
+            "detail": {
+                "valueAnimation": True,
+                "formatter": "{value}%",
+                "fontSize": 30,
+                "offsetCenter": [0, "70%"]
+            },
+            "data": [{"value": score_sante, "name": "Score"}]
+        }]
+    }
+    st_echarts(options=options, height="400px")
     
     # Moyenne de produits par fabricant
     moyenne = subset.groupby('fabID')['prodID'].nunique().mean()
@@ -167,27 +193,50 @@ def render_disponibilite_magasins():
         'Magasin B': prod_magB
     }).fillna(0)
     
-    fig = go.Figure()
+    # Préparer les données pour le graphique dumbbell avec ECharts
+    categories = [str(cat) for cat in df_dumbbell.index]
     
+    # Créer les séries pour les lignes et les points
+    series = []
+    
+    # Lignes de connexion
     for cat in df_dumbbell.index:
-        fig.add_trace(go.Scatter(
-            x=[df_dumbbell.loc[cat, 'Magasin A'], df_dumbbell.loc[cat, 'Magasin B']],
-            y=[cat, cat],
-            mode='lines+markers',
-            line=dict(color='gray', width=2),
-            name=str(cat),
-            marker=dict(color="purple", size=10)
-        ))
+        valA = df_dumbbell.loc[cat, 'Magasin A']
+        valB = df_dumbbell.loc[cat, 'Magasin B']
+        series.append({
+            "type": "line",
+            "lineStyle": {"color": "gray", "width": 2},
+            "symbol": "none",
+            "data": [[valA, str(cat)], [valB, str(cat)]]
+        })
     
-    fig.update_layout(
-        title=f"Disponibilité du fabricant {fabID} : {magA} vs {magB}",
-        xaxis_title="Nombre de produits disponibles",
-        yaxis_title="Catégorie",
-        showlegend=False,
-        height=600
-    )
+    # Points pour Magasin A
+    series.append({
+        "name": f"Magasin {magA}",
+        "type": "scatter",
+        "symbolSize": 12,
+        "itemStyle": {"color": "#5470c6"},
+        "data": [[df_dumbbell.loc[cat, 'Magasin A'], str(cat)] for cat in df_dumbbell.index]
+    })
     
-    st.plotly_chart(fig, use_container_width=True)
+    # Points pour Magasin B
+    series.append({
+        "name": f"Magasin {magB}",
+        "type": "scatter",
+        "symbolSize": 12,
+        "itemStyle": {"color": "#91cc75"},
+        "data": [[df_dumbbell.loc[cat, 'Magasin B'], str(cat)] for cat in df_dumbbell.index]
+    })
+    
+    options = {
+        "title": {"text": f"Disponibilité du fabricant {fabID} : {magA} vs {magB}"},
+        "tooltip": {"trigger": "item"},
+        "legend": {"data": [f"Magasin {magA}", f"Magasin {magB}"]},
+        "xAxis": {"type": "value", "name": "Nombre de produits disponibles"},
+        "yAxis": {"type": "category", "data": categories, "name": "Catégorie"},
+        "series": series
+    }
+    st_echarts(options=options, height="600px")
 
 
 def render_ratio_accords_produits():
@@ -227,19 +276,59 @@ def render_ratio_accords_produits():
         st.warning("Pas de données pour cette catégorie / période.")
         return
     
-    fig_ratio = px.scatter(
-        ratio_df,
-        x="ratio",
-        y="fabID",
-        size="nb_accords",
-        color="ratio",
-        hover_data=['nb_accords', 'nb_produits'],
-        labels={'ratio': 'Accords / produit', 'fabID': 'Fabricant'},
-        title=f"Ratio accords/produits (cat {catID})"
-    )
-    
-    fig_ratio.update_layout(height=650)
-    st.plotly_chart(fig_ratio, use_container_width=True)
+    # Scatter plot avec bulles
+    options = {
+        "title": {"text": f"Ratio accords/produits (cat {catID})"},
+        "tooltip": {
+            "trigger": "item",
+            "formatter": JsCode("""
+                function(params) {
+                    return 'Fabricant: ' + params.data[3] + '<br/>' +
+                           'Ratio: ' + params.data[0].toFixed(2) + '<br/>' +
+                           'Accords: ' + params.data[4] + '<br/>' +
+                           'Produits: ' + params.data[5];
+                }
+            """).js_code
+        },
+        "xAxis": {"type": "value", "name": "Ratio accords / produit"},
+        "yAxis": {
+            "type": "category",
+            "data": ratio_df['fabID'].astype(str).tolist(),
+            "name": "Fabricant"
+        },
+        "visualMap": {
+            "min": ratio_df['ratio'].min(),
+            "max": ratio_df['ratio'].max(),
+            "dimension": 0,
+            "orient": "vertical",
+            "right": 10,
+            "top": "center",
+            "text": ["HIGH", "LOW"],
+            "calculable": True,
+            "inRange": {"color": ["#50a3ba", "#eac736", "#d94e5d"]}
+        },
+        "series": [{
+            "type": "scatter",
+            "symbolSize": JsCode("""
+                function(data) {
+                    return Math.sqrt(data[4]) * 2;
+                }
+            """).js_code,
+            "data": [
+                [
+                    row['ratio'],
+                    idx,
+                    row['nb_accords'],
+                    str(row['fabID']),
+                    row['nb_accords'],
+                    row['nb_produits']
+                ]
+                for idx, row in ratio_df.iterrows()
+            ],
+            "emphasis": {"focus": "self"}
+        }]
+    }
+    st_echarts(options=options, height="650px")
 
 
 def render_intensite_concurrentielle():
