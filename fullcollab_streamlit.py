@@ -7,7 +7,7 @@ import streamlit as st
 _cached_df = None
 
 
-def load_data(file_path='./pointsDeVente-tous.csv'):
+def load_data(file_path='./data/pointsDeVente-tous.csv'):
     """Charge les données du fichier CSV"""
     global _cached_df
     if _cached_df is not None:
