@@ -3,7 +3,7 @@ import textwrap
 
 import streamlit as st
 
-from back import FULLCOLLAB_DEMOS
+from fullcollab_streamlit import FULLCOLLAB_DEMOS
 
 def main():
     st.title("Streamlit cours graphe")
