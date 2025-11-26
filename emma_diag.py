@@ -24,7 +24,7 @@ def load_data():
         produits = pd.read_csv(file_produits, sep=";", header=None, names=col_produits)
         
         col_pdv = ['dateID', 'prodID', 'catID', 'fabID', 'magID']
-        pdv = pd.read_csv(file_pdv, sep=";", header=1, names=col_pdv)
+        pdv = pd.read_csv(file_pdv, sep=";", header=5, names=col_pdv)
         
         # Conversion des dates
         produits['date'] = pd.to_datetime(produits['dateID'].astype(str), format='%Y%m%d', errors='coerce')
