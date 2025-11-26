@@ -4,18 +4,19 @@ import textwrap
 import streamlit as st
 
 from fullcollab_streamlit import FULLCOLLAB_DEMOS
+from emma_diag import BOARD_FABRICANTS_DEMOS
 
 def main():
     st.title("Streamlit cours graphe")
-
+    allDiag = {**vars(FULLCOLLAB_DEMOS), **vars(BOARD_FABRICANTS_DEMOS)}
     with st.sidebar:
         st.header("Configuration")
         selected_page = st.selectbox(
             label="Choose an example",
-            options= list(FULLCOLLAB_DEMOS.keys()),
+            options= list(allDiag.keys()),
         )
         demo = (
-            FULLCOLLAB_DEMOS[selected_page]
+            allDiag[selected_page]
         )
 
     demo()
