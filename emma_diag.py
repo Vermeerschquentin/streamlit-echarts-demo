@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_echarts import st_echarts, JsCode
 
-
+str
 # Variables globales pour stocker les données
 _cached_produits = None
 _cached_pdv = None
@@ -12,27 +12,27 @@ _cached_pdv = None
 def load_data():
     """Charge les données des fichiers CSV"""
     global _cached_produits, _cached_pdv
-    
+
     if _cached_produits is not None and _cached_pdv is not None:
         return _cached_produits, _cached_pdv
-    
+
     try:
         file_produits = "./data/produits-tous.csv"
         file_pdv = "./data/pointsDeVente-tous.csv"
-        
+
         col_produits = ['dateID', 'prodID', 'catID', 'fabID']
         produits = pd.read_csv(file_produits, sep=";", header=None, names=col_produits)
-        
+
         col_pdv = ['dateID', 'prodID', 'catID', 'fabID', 'magID']
         pdv = pd.read_csv(file_pdv, sep=",", header=5, names=col_pdv)
-        
+
         # Conversion des dates
         produits['date'] = pd.to_datetime(produits['dateID'].astype(str), format='%Y%m%d', errors='coerce')
         pdv['date'] = pd.to_datetime(pdv['dateID'].astype(str), format='%Y%m%d', errors='coerce')
-        
+
         _cached_produits = produits
         _cached_pdv = pdv
-        
+
         return produits, pdv
     except Exception as e:
         st.error(f"Erreur lors du chargement: {e}")
@@ -44,13 +44,13 @@ def render_top_magasins_categorie():
     produits, pdv = load_data()
     if pdv is None:
         return
-    
+
     listeCats = sorted(pdv['catID'].unique())
     catID = st.selectbox("Sélectionner une catégorie", listeCats, key="cat_top_mag")
-    
+
     subset = pdv[pdv['catID'] == catID]
     top10_mag = subset.groupby('magID')['prodID'].count().nlargest(10).sort_values()
-    
+
     options = {
         "title": {"text": f"Top 10 magasins pour la catégorie {catID}"},
         "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
@@ -67,7 +67,7 @@ def render_top_magasins_categorie():
         }]
     }
     st_echarts(options=options, height="500px")
-    
+
     # Afficher le nombre d'acteurs
     fabricants = subset['fabID'].nunique()
     st.metric("Nombre de fabricants dans cette catégorie", fabricants)
@@ -78,22 +78,22 @@ def render_score_sante_fabricant():
     produits, pdv = load_data()
     if pdv is None:
         return
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         listeCats = sorted(pdv['catID'].unique())
         catID = st.selectbox("Catégorie", listeCats, key="cat_score")
-    
+
     with col2:
         listeFabs = sorted(pdv['fabID'].unique())
         fabID = st.selectbox("Fabricant", listeFabs, key="fab_score")
-    
+
     subset = pdv[pdv['catID'] == catID]
     total_cat = subset['prodID'].nunique()
     total_fab = subset[subset['fabID'] == fabID]['prodID'].nunique()
     score_sante = (total_fab / total_cat * 100) if total_cat > 0 else 0
-    
+
     # Gauge avec ECharts
     options = {
         "title": {"text": f"Score Santé Fab {fabID} - Cat {catID}", "left": "center"},
@@ -130,7 +130,7 @@ def render_score_sante_fabricant():
         }]
     }
     st_echarts(options=options, height="400px")
-    
+
     # Moyenne de produits par fabricant
     moyenne = subset.groupby('fabID')['prodID'].nunique().mean()
     st.metric(f"Moyenne de produits de catégorie {catID} par fabricant", f"{moyenne:.1f}")
@@ -141,11 +141,11 @@ def render_presence_marche():
     produits, pdv = load_data()
     if pdv is None:
         return
-    
+
     topN = st.slider("Nombre de fabricants à afficher", 5, 20, 10, step=5, key="top_market")
-    
+
     presence_fab = pdv.groupby('fabID')['magID'].nunique().nlargest(topN)
-    
+
     options = {
         "title": {"text": f"Top {topN} fabricants présents dans le plus de magasins"},
         "tooltip": {"trigger": "item"},
@@ -171,63 +171,61 @@ def render_disponibilite_magasins():
     produits, pdv = load_data()
     if pdv is None:
         return
-    
+
     listeMags = sorted(pdv['magID'].unique())
     listeFabs = sorted(pdv['fabID'].unique())
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         magA = st.selectbox("Magasin A", listeMags, key="magA")
     with col2:
-        magB = st.selectbox("Magasin B", listeMags, index=min(1, len(listeMags)-1), key="magB")
+        magB = st.selectbox("Magasin B", listeMags, index=min(1, len(listeMags) - 1), key="magB")
     with col3:
         fabID = st.selectbox("Fabricant", listeFabs, key="fab_dumbbell")
-    
+
     subset_fab = pdv[pdv['fabID'] == fabID]
     prod_magA = subset_fab[subset_fab['magID'] == magA].groupby('catID')['prodID'].nunique()
     prod_magB = subset_fab[subset_fab['magID'] == magB].groupby('catID')['prodID'].nunique()
-    
+
     df_dumbbell = pd.DataFrame({
         'Magasin A': prod_magA,
         'Magasin B': prod_magB
     }).fillna(0)
-    
-    # Préparer les données pour le graphique dumbbell avec ECharts
+
     categories = [str(cat) for cat in df_dumbbell.index]
-    
-    # Créer les séries pour les lignes et les points
+
     series = []
-    
+
     # Lignes de connexion
     for cat in df_dumbbell.index:
-        valA = df_dumbbell.loc[cat, 'Magasin A']
-        valB = df_dumbbell.loc[cat, 'Magasin B']
+        valA = int(df_dumbbell.loc[cat, 'Magasin A'])
+        valB = int(df_dumbbell.loc[cat, 'Magasin B'])
         series.append({
             "type": "line",
             "lineStyle": {"color": "gray", "width": 2},
             "symbol": "none",
             "data": [[valA, str(cat)], [valB, str(cat)]]
         })
-    
+
     # Points pour Magasin A
     series.append({
         "name": f"Magasin {magA}",
         "type": "scatter",
         "symbolSize": 12,
         "itemStyle": {"color": "#5470c6"},
-        "data": [[df_dumbbell.loc[cat, 'Magasin A'], str(cat)] for cat in df_dumbbell.index]
+        "data": [[int(df_dumbbell.loc[cat, 'Magasin A']), str(cat)] for cat in df_dumbbell.index]
     })
-    
+
     # Points pour Magasin B
     series.append({
         "name": f"Magasin {magB}",
         "type": "scatter",
         "symbolSize": 12,
         "itemStyle": {"color": "#91cc75"},
-        "data": [[df_dumbbell.loc[cat, 'Magasin B'], str(cat)] for cat in df_dumbbell.index]
+        "data": [[int(df_dumbbell.loc[cat, 'Magasin B']), str(cat)] for cat in df_dumbbell.index]
     })
-    
+
     options = {
         "title": {"text": f"Disponibilité du fabricant {fabID} : {magA} vs {magB}"},
         "tooltip": {"trigger": "item"},
@@ -236,6 +234,7 @@ def render_disponibilite_magasins():
         "yAxis": {"type": "category", "data": categories, "name": "Catégorie"},
         "series": series
     }
+
     st_echarts(options=options, height="600px")
 
 
@@ -294,54 +293,51 @@ def render_ratio_accords_produits():
 
 def render_intensite_concurrentielle():
     """Intensité concurrentielle par catégorie (HHI)"""
+
     produits, pdv = load_data()
     if pdv is None:
         return
-    
+
     listeCats = sorted(pdv['catID'].unique())
     catID = st.selectbox("Catégorie", listeCats, key="cat_hhi")
-    
+
     subset_cat = pdv[pdv['catID'] == catID]
     prod_counts_by_fab = subset_cat.groupby('fabID')['prodID'].nunique()
     total_products_cat = prod_counts_by_fab.sum()
-    
+
     if total_products_cat == 0:
         st.warning("Aucun produit enregistré pour cette catégorie.")
         return
-    
+
     market_share = prod_counts_by_fab / total_products_cat
     hhi = (market_share ** 2).sum()
-    
+
     if hhi < 0.01:
         interp = "Concurrence faible"
     elif hhi < 0.03:
         interp = "Concurrence modérée"
     else:
         interp = "Concurrence élevée"
-    
+
     ms_df = pd.DataFrame({
         "share_frac": market_share.values,
         "nb_products": prod_counts_by_fab.values
     }, index=market_share.index.astype(str)).sort_values("share_frac", ascending=False).head(20)
-    
+    st.write(ms_df)
+
     # Graphique ECharts
+    x_data = [str(x) for x in ms_df.index.tolist()]
+    y_data = [float(x) for x in ms_df['share_frac'].tolist()]
+
     options = {
         "title": {"text": f"Parts de marché - Catégorie {catID}"},
         "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
-        "xAxis": {
-            "type": "category",
-            "data": ms_df.index.tolist(),
-            "axisLabel": {"rotate": 45}
-        },
+        "xAxis": {"type": "category", "data": x_data, "axisLabel": {"rotate": 45}},
         "yAxis": {"type": "value", "name": "Part de marché"},
-        "series": [{
-            "data": ms_df['share_frac'].values.tolist(),
-            "type": "bar",
-            "itemStyle": {"color": "#ee6666"}
-        }]
+        "series": [{"type": "bar", "data": y_data, "itemStyle": {"color": "#ee6666"}}]
     }
     st_echarts(options=options, height="500px")
-    
+
     col1, col2 = st.columns(2)
     with col1:
         st.metric(f"HHI pour la catégorie {catID}", f"{hhi:.4f}")
@@ -354,40 +350,40 @@ def render_croissance_catalogue():
     produits, pdv = load_data()
     if produits is None:
         return
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         listeCats = sorted(produits['catID'].unique())
         catID = st.selectbox("Catégorie", listeCats, key="cat_growth")
-    
+
     with col2:
         growth_scope = st.radio("Vue", ("Toute la catégorie", "Par fabricant"), key="scope_growth")
-    
+
     prods_scope = produits[produits['catID'] == catID].copy()
-    
+
     if growth_scope == "Par fabricant":
         listeFabs = sorted(prods_scope['fabID'].unique())
         fabID = st.selectbox("Fabricant", listeFabs, key="fab_growth")
         prods_scope = prods_scope[prods_scope['fabID'] == fabID]
-    
+
     if 'date' in prods_scope.columns:
         first_seen = prods_scope.groupby('prodID')['date'].min().dropna()
         first_seen_month = first_seen.dt.to_period('M').value_counts().sort_index()
-        
+
         idx = pd.to_datetime(first_seen_month.index.to_timestamp())
         df_growth = pd.DataFrame({
             'month': idx,
             'nouv_prod': first_seen_month.values
         }).sort_values('month')
-        
+
         if df_growth.empty:
             st.warning("Pas assez de données temporelles.")
             return
-        
+
         # Convertir en format pour ECharts
         months_str = df_growth['month'].dt.strftime('%Y-%m').tolist()
-        
+
         options = {
             "title": {"text": f"Nouveaux produits par mois - {growth_scope} (cat {catID})"},
             "tooltip": {"trigger": "axis"},
