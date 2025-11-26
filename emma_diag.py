@@ -275,20 +275,59 @@ def render_ratio_accords_produits():
         st.warning("Pas de données pour cette catégorie / période.")
         return
 
-    fig_ratio = px.scatter(
-        ratio_df,
-        x="ratio",
-        y="fabID",
-        size="nb_accords",
-        color="ratio",
-        hover_data=['nb_accords', 'nb_produits'],
-        labels={'ratio': 'Accords / produit', 'fabID': 'Fabricant'},
-        title=f"Ratio accords/produits (cat {catID})"
-    )
-
-    fig_ratio.update_layout(height=650)
-    st.plotly_chart(fig_ratio, use_container_width=True)
-
+    # Scatter plot avec bulles
+    options = {
+        "title": {"text": f"Ratio accords/produits (cat {catID})"},
+        "tooltip": {
+            "trigger": "item",
+            "formatter": JsCode("""
+                function(params) {
+                    return 'Fabricant: ' + params.data[3] + '<br/>' +
+                           'Ratio: ' + params.data[0].toFixed(2) + '<br/>' +
+                           'Accords: ' + params.data[4] + '<br/>' +
+                           'Produits: ' + params.data[5];
+                }
+            """).js_code
+        },
+        "xAxis": {"type": "value", "name": "Ratio accords / produit"},
+        "yAxis": {
+            "type": "category",
+            "data": ratio_df['fabID'].astype(str).tolist(),
+            "name": "Fabricant"
+        },
+        "visualMap": {
+            "min": ratio_df['ratio'].min(),
+            "max": ratio_df['ratio'].max(),
+            "dimension": 0,
+            "orient": "vertical",
+            "right": 10,
+            "top": "center",
+            "text": ["HIGH", "LOW"],
+            "calculable": True,
+            "inRange": {"color": ["#50a3ba", "#eac736", "#d94e5d"]}
+        },
+        "series": [{
+            "type": "scatter",
+            "symbolSize": JsCode("""
+                function(data) {
+                    return Math.sqrt(data[4]) * 2;
+                }
+            """).js_code,
+            "data": [
+                [
+                    row['ratio'],
+                    idx,
+                    row['nb_accords'],
+                    str(row['fabID']),
+                    row['nb_accords'],
+                    row['nb_produits']
+                ]
+                for idx, row in ratio_df.iterrows()
+            ],
+            "emphasis": {"focus": "self"}
+        }]
+    }
+    st_echarts(options=options, height="650px")
 def render_intensite_concurrentielle():
     """Intensité concurrentielle par catégorie (HHI)"""
 
