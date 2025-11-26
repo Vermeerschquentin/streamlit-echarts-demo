@@ -17,14 +17,14 @@ def load_data():
         return _cached_produits, _cached_pdv
     
     try:
-        file_produits = "produits-tous.gz"
-        file_pdv = "pointsDeVente-tous.gz"
+        file_produits = "./data/produits-tous.gz"
+        file_pdv = "./data/pointsDeVente-tous.gz"
         
         col_produits = ['dateID', 'prodID', 'catID', 'fabID']
-        produits = pd.read_csv(file_produits, sep=" ", header=None, names=col_produits, compression='gzip')
+        produits = pd.read_csv(file_produits, sep=";", header=None, names=col_produits, compression='gzip')
         
         col_pdv = ['dateID', 'prodID', 'catID', 'fabID', 'magID']
-        pdv = pd.read_csv(file_pdv, sep=" ", header=None, names=col_pdv, compression='gzip')
+        pdv = pd.read_csv(file_pdv, sep=";", header=None, names=col_pdv, compression='gzip')
         
         # Conversion des dates
         produits['date'] = pd.to_datetime(produits['dateID'].astype(str), format='%Y%m%d', errors='coerce')
