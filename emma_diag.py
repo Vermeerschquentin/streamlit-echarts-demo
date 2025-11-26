@@ -239,7 +239,7 @@ def render_disponibilite_magasins():
 
 
 def render_ratio_accords_produits():
-    """Affiche un scatter plot du ratio accords / produits par fabricant."""
+    """Ratio accords / produits par fabricant"""
     produits, pdv = load_data()
     if pdv is None:
         return
@@ -247,13 +247,20 @@ def render_ratio_accords_produits():
     listeCats = sorted(pdv['catID'].unique())
     catID = st.selectbox("Catégorie", listeCats, key="cat_ratio")
 
-    subset_cat = pdv[pdv['catID'] == catID]
+    # Sélection de période
+    col1, col2 = st.columns(2)
+    with col1:
+        date_debut = st.date_input("Date début", datetime.date(2022, 1, 1), key="debut_ratio")
+    with col2:
+        date_fin = st.date_input("Date fin", datetime.datetime.now().date(), key="fin_ratio")
 
-    if subset_cat.empty:
-        st.write("Pas de données pour cette catégorie / période.")
-        return
+    subset_cat = pdv[pdv['catID'] == catID].copy()
 
-    # calculs
+    # Filtrer par dates
+    start_date = pd.to_datetime(date_debut)
+    end_date = pd.to_datetime(date_fin) + pd.Timedelta(days=1)
+    subset_cat = subset_cat[(subset_cat['date'] >= start_date) & (subset_cat['date'] <= end_date)]
+
     acc_per_fab = subset_cat.groupby('fabID')['prodID'].count().rename('nb_accords')
     prods_per_fab = subset_cat.groupby('fabID')['prodID'].nunique().rename('nb_produits')
 
@@ -262,11 +269,12 @@ def render_ratio_accords_produits():
         lambda r: r['nb_accords'] / r['nb_produits'] if r['nb_produits'] > 0 else 0,
         axis=1
     )
-
     ratio_df = ratio_df.sort_values('ratio', ascending=False).head(30).reset_index()
 
-    # Scatter plot avec Plotly
-    import plotly.express as px
+    if ratio_df.empty:
+        st.warning("Pas de données pour cette catégorie / période.")
+        return
+
     fig_ratio = px.scatter(
         ratio_df,
         x="ratio",
@@ -274,22 +282,12 @@ def render_ratio_accords_produits():
         size="nb_accords",
         color="ratio",
         hover_data=['nb_accords', 'nb_produits'],
-        labels={
-            'ratio': 'Accords / produit',
-            'fabID': 'Fabricant'
-        },
-        title=f"Top fabricants — Scatter Plot du ratio accords/produits (cat {catID})"
+        labels={'ratio': 'Accords / produit', 'fabID': 'Fabricant'},
+        title=f"Ratio accords/produits (cat {catID})"
     )
 
-    fig_ratio.update_layout(
-        height=650,
-        xaxis_title="Ratio accords / produit",
-        yaxis_title="Fabricant",
-        coloraxis_colorbar_title="Ratio"
-    )
-
+    fig_ratio.update_layout(height=650)
     st.plotly_chart(fig_ratio, use_container_width=True)
-
 
 def render_intensite_concurrentielle():
     """Intensité concurrentielle par catégorie (HHI)"""
