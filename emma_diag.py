@@ -92,7 +92,7 @@ def render_score_sante_fabricant():
     subset = pdv[pdv['catID'] == catID]
     total_cat = subset['prodID'].nunique()
     total_fab = subset[subset['fabID'] == fabID]['prodID'].nunique()
-    score_sante = (total_fab / total_cat * 100) if total_cat > 0 else 0
+    score_sante = (total_fab / total_cat * 1000) if total_cat > 0 else 0
 
     # Gauge avec ECharts
     options = {
