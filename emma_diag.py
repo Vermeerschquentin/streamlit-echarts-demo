@@ -24,7 +24,7 @@ def load_data():
         produits = pd.read_csv(file_produits, sep=";", header=None, names=col_produits)
         
         col_pdv = ['dateID', 'prodID', 'catID', 'fabID', 'magID']
-        pdv = pd.read_csv(file_pdv, sep=";", header=5, names=col_pdv)
+        pdv = pd.read_csv(file_pdv, sep=",", header=5, names=col_pdv)
         
         # Conversion des dates
         produits['date'] = pd.to_datetime(produits['dateID'].astype(str), format='%Y%m%d', errors='coerce')
@@ -240,95 +240,56 @@ def render_disponibilite_magasins():
 
 
 def render_ratio_accords_produits():
-    """Ratio accords / produits par fabricant"""
+    """Affiche un scatter plot du ratio accords / produits par fabricant."""
     produits, pdv = load_data()
     if pdv is None:
         return
-    
+
     listeCats = sorted(pdv['catID'].unique())
     catID = st.selectbox("Catégorie", listeCats, key="cat_ratio")
-    
-    # Sélection de période
-    col1, col2 = st.columns(2)
-    with col1:
-        date_debut = st.date_input("Date début", datetime.date(2022, 1, 1), key="debut_ratio")
-    with col2:
-        date_fin = st.date_input("Date fin", datetime.datetime.now().date(), key="fin_ratio")
-    
-    subset_cat = pdv[pdv['catID'] == catID].copy()
-    
-    # Filtrer par dates
-    start_date = pd.to_datetime(date_debut)
-    end_date = pd.to_datetime(date_fin) + pd.Timedelta(days=1)
-    subset_cat = subset_cat[(subset_cat['date'] >= start_date) & (subset_cat['date'] <= end_date)]
-    
+
+    subset_cat = pdv[pdv['catID'] == catID]
+
+    if subset_cat.empty:
+        st.write("Pas de données pour cette catégorie / période.")
+        return
+
+    # calculs
     acc_per_fab = subset_cat.groupby('fabID')['prodID'].count().rename('nb_accords')
     prods_per_fab = subset_cat.groupby('fabID')['prodID'].nunique().rename('nb_produits')
-    
+
     ratio_df = pd.concat([acc_per_fab, prods_per_fab], axis=1).fillna(0)
     ratio_df['ratio'] = ratio_df.apply(
         lambda r: r['nb_accords'] / r['nb_produits'] if r['nb_produits'] > 0 else 0,
         axis=1
     )
+
     ratio_df = ratio_df.sort_values('ratio', ascending=False).head(30).reset_index()
-    
-    if ratio_df.empty:
-        st.warning("Pas de données pour cette catégorie / période.")
-        return
-    
-    # Scatter plot avec bulles
-    options = {
-        "title": {"text": f"Ratio accords/produits (cat {catID})"},
-        "tooltip": {
-            "trigger": "item",
-            "formatter": JsCode("""
-                function(params) {
-                    return 'Fabricant: ' + params.data[3] + '<br/>' +
-                           'Ratio: ' + params.data[0].toFixed(2) + '<br/>' +
-                           'Accords: ' + params.data[4] + '<br/>' +
-                           'Produits: ' + params.data[5];
-                }
-            """).js_code
+
+    # Scatter plot avec Plotly
+    import plotly.express as px
+    fig_ratio = px.scatter(
+        ratio_df,
+        x="ratio",
+        y="fabID",
+        size="nb_accords",
+        color="ratio",
+        hover_data=['nb_accords', 'nb_produits'],
+        labels={
+            'ratio': 'Accords / produit',
+            'fabID': 'Fabricant'
         },
-        "xAxis": {"type": "value", "name": "Ratio accords / produit"},
-        "yAxis": {
-            "type": "category",
-            "data": ratio_df['fabID'].astype(str).tolist(),
-            "name": "Fabricant"
-        },
-        "visualMap": {
-            "min": ratio_df['ratio'].min(),
-            "max": ratio_df['ratio'].max(),
-            "dimension": 0,
-            "orient": "vertical",
-            "right": 10,
-            "top": "center",
-            "text": ["HIGH", "LOW"],
-            "calculable": True,
-            "inRange": {"color": ["#50a3ba", "#eac736", "#d94e5d"]}
-        },
-        "series": [{
-            "type": "scatter",
-            "symbolSize": JsCode("""
-                function(data) {
-                    return Math.sqrt(data[4]) * 2;
-                }
-            """).js_code,
-            "data": [
-                [
-                    row['ratio'],
-                    idx,
-                    row['nb_accords'],
-                    str(row['fabID']),
-                    row['nb_accords'],
-                    row['nb_produits']
-                ]
-                for idx, row in ratio_df.iterrows()
-            ],
-            "emphasis": {"focus": "self"}
-        }]
-    }
-    st_echarts(options=options, height="650px")
+        title=f"Top fabricants — Scatter Plot du ratio accords/produits (cat {catID})"
+    )
+
+    fig_ratio.update_layout(
+        height=650,
+        xaxis_title="Ratio accords / produit",
+        yaxis_title="Fabricant",
+        coloraxis_colorbar_title="Ratio"
+    )
+
+    st.plotly_chart(fig_ratio, use_container_width=True)
 
 
 def render_intensite_concurrentielle():
