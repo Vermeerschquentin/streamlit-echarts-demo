@@ -1,20 +1,34 @@
 import pandas as pd
 from streamlit_echarts import st_echarts
+import streamlit as st
 
 
-def load_data(file_path='./data/pointsDeVente-tous.csv'):
+# Variable globale pour stocker les données
+_cached_df = None
+
+
+def load_data(file_path='./pointsDeVente-tous.csv'):
     """Charge les données du fichier CSV"""
+    global _cached_df
+    if _cached_df is not None:
+        return _cached_df
+    
     try:
         df = pd.read_csv(file_path)
         df['date'] = pd.to_datetime(df['dateID'].astype(str), format='%Y%m%d')
+        _cached_df = df
         return df
     except Exception as e:
-        print(f"Erreur lors du chargement: {e}")
+        st.error(f"Erreur lors du chargement: {e}")
         return None
 
 
-def render_produits_par_categorie(df):
+def render_produits_par_categorie():
     """Graphique: Nombre de produits uniques par catégorie"""
+    df = load_data()
+    if df is None:
+        return
+    
     produits_uniques = df.groupby('catID')['produit ID'].nunique()
     
     options = {
@@ -35,8 +49,13 @@ def render_produits_par_categorie(df):
     st_echarts(options=options, height="500px")
 
 
-def render_produits_par_fabricant(df, top_n=20):
+def render_produits_par_fabricant():
     """Graphique: Top fabricants par nombre de produits uniques"""
+    df = load_data()
+    if df is None:
+        return
+    
+    top_n = st.slider("Nombre de fabricants à afficher", 5, 50, 20)
     produits_uniques = df.groupby('fabID')['produit ID'].nunique().nlargest(top_n)
     
     options = {
@@ -57,8 +76,12 @@ def render_produits_par_fabricant(df, top_n=20):
     st_echarts(options=options, height="500px")
 
 
-def render_magasins_par_categorie(df):
+def render_magasins_par_categorie():
     """Graphique: Nombre de magasins uniques par catégorie"""
+    df = load_data()
+    if df is None:
+        return
+    
     magasins_uniques = df.groupby('catID')['magID'].nunique()
     
     options = {
@@ -79,8 +102,13 @@ def render_magasins_par_categorie(df):
     st_echarts(options=options, height="500px")
 
 
-def render_magasins_par_fabricant(df, top_n=20):
+def render_magasins_par_fabricant():
     """Graphique: Top fabricants par nombre de magasins uniques"""
+    df = load_data()
+    if df is None:
+        return
+    
+    top_n = st.slider("Nombre de fabricants à afficher", 5, 50, 20)
     magasins_uniques = df.groupby('fabID')['magID'].nunique().nlargest(top_n)
     
     options = {
@@ -101,8 +129,12 @@ def render_magasins_par_fabricant(df, top_n=20):
     st_echarts(options=options, height="500px")
 
 
-def render_tendance_produits_mensuelle(df):
+def render_tendance_produits_mensuelle():
     """Graphique: Tendance du nombre de produits uniques par mois"""
+    df = load_data()
+    if df is None:
+        return
+    
     produits_par_mois = df.groupby(df['date'].dt.to_period('M'))['produit ID'].nunique()
     
     options = {
@@ -126,28 +158,42 @@ def render_tendance_produits_mensuelle(df):
     st_echarts(options=options, height="500px")
 
 
-def render_sankey_diagram(df):
+def render_sankey_diagram():
     """Diagramme Sankey: Flux Magasin -> Catégories -> Fournisseurs"""
+    df = load_data()
+    if df is None:
+        return
+    
     # Sélectionner le magasin par défaut (le plus fréquent)
-    default_magID = df['magID'].value_counts().index[0]
-    df_mag = df[df['magID'] == default_magID]
+    mag_counts = df['magID'].value_counts()
+    default_magID = mag_counts.index[0]
     
-    # Top 10 catégories pour ce magasin
-    top_categories = df_mag.groupby('catID')['produit ID'].nunique().nlargest(10)
+    # Permettre à l'utilisateur de choisir le magasin
+    selected_magID = st.selectbox(
+        "Sélectionner un magasin",
+        options=mag_counts.head(10).index.tolist(),
+        index=0
+    )
     
-    # Top 5 fournisseurs par catégorie
+    df_mag = df[df['magID'] == selected_magID]
+    
+    # Top catégories pour ce magasin
+    top_n_cat = st.slider("Nombre de catégories à afficher", 3, 15, 10)
+    top_categories = df_mag.groupby('catID')['produit ID'].nunique().nlargest(top_n_cat)
+    
+    # Construire les nœuds et liens
     nodes = []
     links = []
     
     # Ajouter le nœud du magasin
-    nodes.append({"name": f"Magasin {default_magID}"})
+    nodes.append({"name": f"Magasin {selected_magID}"})
     
     # Ajouter les catégories et leurs liens
     for cat_id, num_products in top_categories.items():
         cat_name = f"Cat {cat_id}"
         nodes.append({"name": cat_name})
         links.append({
-            "source": f"Magasin {default_magID}",
+            "source": f"Magasin {selected_magID}",
             "target": cat_name,
             "value": num_products
         })
@@ -168,7 +214,7 @@ def render_sankey_diagram(df):
     
     options = {
         "title": {
-            "text": "Flux: Magasin → Catégories → Fournisseurs",
+            "text": f"Flux: Magasin {selected_magID} → Catégories → Fournisseurs",
             "subtext": "Basé sur le nombre de produits uniques"
         },
         "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
@@ -185,28 +231,10 @@ def render_sankey_diagram(df):
 
 # Dictionnaire des visualisations disponibles
 FULLCOLLAB_DEMOS = {
-    "Produits par Catégorie": (
-        render_produits_par_categorie,
-        "Nombre de produits uniques par catégorie"
-    ),
-    "Produits par Fabricant": (
-        render_produits_par_fabricant,
-        "Top 20 fabricants par nombre de produits"
-    ),
-    "Magasins par Catégorie": (
-        render_magasins_par_categorie,
-        "Nombre de magasins distincts par catégorie"
-    ),
-    "Magasins par Fabricant": (
-        render_magasins_par_fabricant,
-        "Top 20 fabricants par nombre de magasins"
-    ),
-    "Tendance Mensuelle": (
-        render_tendance_produits_mensuelle,
-        "Évolution du nombre de produits par mois"
-    ),
-    "Diagramme Sankey": (
-        render_sankey_diagram,
-        "Flux Magasin → Catégories → Fournisseurs"
-    )
+    "Produits par Catégorie": render_produits_par_categorie,
+    "Produits par Fabricant": render_produits_par_fabricant,
+    "Magasins par Catégorie": render_magasins_par_categorie,
+    "Magasins par Fabricant": render_magasins_par_fabricant,
+    "Tendance Mensuelle": render_tendance_produits_mensuelle,
+    "Diagramme Sankey": render_sankey_diagram
 }
